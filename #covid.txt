@@ -1,0 +1,118 @@
+#Veri Hazırlama
+
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize([0.5], [0.5])
+])
+
+dataset = datasets.ImageFolder('data/COVIDx', transform=transform)
+train_set, val_set, test_set = torch.utils.data.random_split(dataset, [int(0.7*len(dataset)), int(0.15*len(dataset)), int(0.15*len(dataset))])
+
+train_loader = DataLoader(train_set, batch_size=32, shuffle=True)
+val_loader = DataLoader(val_set, batch_size=32)
+test_loader = DataLoader(test_set, batch_size=32)
+Açıklama:
+
+transforms.Compose([...]): #Görüntüleri hazırlamak için kullanılan bir dizi dönüşüm fonksiyonudur. Bu örnekte:
+
+Resize((224, 224)): #örüntüleri 224x224 piksel boyutuna yeniden boyutlandırır.
+
+ToTensor(): #Görüntüleri PyTorch tensor'larına dönüştürür.
+
+Normalize([0.5], [0.5]): #Görüntü verisini normalize eder, bu da modelin öğrenme sürecini kolaylaştırır.
+
+datasets.ImageFolder: # Görüntülerin bulunduğu dizindeki etiketlere göre veriyi yükler. COVIDx veri setini yüklerken, her görselin ait olduğu kategori etiketine göre yüklenmesi sağlanır.
+
+random_split: #Veri setini eğitim, doğrulama ve test bölümlerine ayırır. Burada %70 eğitim, %15 doğrulama ve %15 test verisi ayrılmıştır.
+
+DataLoader: #Eğitim, doğrulama ve test veri setlerine veri yüklemek için kullanılır. Burada batch_size=32 ile her bir batch için 32 görüntü alınması sağlanır.
+## ViT Modeli Tanımı
+
+import timm
+
+model = timm.create_model('vit_base_patch16_224', pretrained=True, num_classes=3)
+model = model.to('cuda' if torch.cuda.is_available() else 'cpu')
+##Açıklama:
+
+timm.create_model: #bu fonksiyon, "timm" (PyTorch Image Models) kütüphanesinden, ViT modelini (vit_base_patch16_224) oluşturur. Burada modelin temel konfigürasyonu (patch boyutu, önceden eğitilmiş ağırlıklar vb.) belirlenmiştir. num_classes=3 parametresi ise modelin çıktısı olarak 3 sınıf bekleyeceğini belirtir.
+
+model.to(...): #Modelin çalışacağı cihazı belirtir. Eğer GPU mevcutsa model, CUDA ile çalışacak şekilde ayarlanır; aksi takdirde CPU kullanılacaktır.
+
+##DeiT Modeli Tanımı
+
+model = timm.create_model('deit_base_patch16_224', pretrained=True, num_classes=3)
+model = model.to('cuda' if torch.cuda.is_available() else 'cpu')
+##Açıklama:
+
+deit_base_patch16_224: #Vision Transformer modelinin veri verimli versiyonu olan DeiT (Data-efficient Image Transformer) kullanılır. Bu modelin daha verimli öğrenme özellikleri vardır.
+
+#Modeli yine aynı şekilde CUDA veya CPU'ya atıyoruz.
+
+##MobileViT Modeli Tanımı
+
+model = timm.create_model('mobilevit_s', pretrained=True, num_classes=3)
+model = model.to('cuda' if torch.cuda.is_available() else 'cpu')
+##Açıklama:
+
+mobilevit_s: # MobileViT, mobil cihazlarda çalışacak şekilde optimize edilmiş bir Vision Transformer modelidir. Model, düşük kaynak tüketimiyle yüksek verim sağlar.
+
+num_classes=3 #burada da modelin 3 sınıf ile çalışması gerektiğini belirtir.
+
+##Eğitim Döngüsü
+
+def train(model, train_loader, val_loader, criterion, optimizer, epochs=10):
+    model.train()
+    for epoch in range(epochs):
+        running_loss = 0.0
+        for images, labels in train_loader:
+            images, labels = images.to(device), labels.to(device)
+            optimizer.zero_grad()
+            outputs = model(images)
+            loss = criterion(outputs, labels)
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
+        print(f"Epoch [{epoch+1}/{epochs}], Loss: {running_loss/len(train_loader):.4f}")
+##Açıklama:
+
+#Bu fonksiyon, modelin eğitim sürecini yönetir.
+
+model.train(): #Modeli eğitim moduna alır.
+
+#Her bir epoch'ta, eğitim verisinden gelen görüntüler ve etiketler alınır.
+
+optimizer.zero_grad(): #Optimizatörü sıfırlar, çünkü PyTorch her parametre güncellemesinden önce gradyanları biriktirir.
+
+outputs = model(images): #Modeli görüntülerle çalıştırarak çıktıyı alır.
+
+loss.backward():# Hataları (loss) geriye doğru ileterek gradyanları hesaplar.
+
+optimizer.step():# Gradyanları kullanarak ağırlıkları günceller.
+
+#Epoch başına kayıp değeri yazdırılır.
+
+##Değerlendirme
+
+def evaluate(model, test_loader):
+    model.eval()
+    y_true, y_pred = [], []
+    with torch.no_grad():
+        for images, labels in test_loader:
+            images, labels = images.to(device), labels.to(device)
+            outputs = model(images)
+            _, preds = torch.max(outputs, 1)
+            y_true.extend(labels.cpu().numpy())
+            y_pred.extend(preds.cpu().numpy())
+    print(classification_report(y_true, y_pred))
+##Açıklama:
+
+model.eval(): #Modeli değerlendirme moduna alır.
+
+with torch.no_grad(): #Değerlendirme sırasında gradyanların hesaplanmaması gerektiğini belirtir, bu da işlem hızını artırır.
+
+outputs = model(images): #Test verileri ile model çalıştırılır.
+
+_, preds = torch.max(outputs, 1): #Modelin tahminini alır, yani her görüntü için en yüksek olasılığa sahip sınıfı seçer.
+
+classification_report(y_true, y_pred): #Gerçek etiketler (y_true) ile tahmin edilen etiketler (y_pred) karşılaştırılır ve modelin performansı (precision, recall, f1-score) hesaplanır.
